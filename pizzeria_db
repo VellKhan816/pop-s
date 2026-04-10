@@ -1,0 +1,118 @@
+-- Удаляем старую БД, если есть (опционально)
+DROP DATABASE IF EXISTS pizzeria_db;
+
+-- Создаём новую БД
+CREATE DATABASE pizzeria_db CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
+USE pizzeria_db;
+
+-- =============================================
+-- ТАБЛИЦЫ
+-- =============================================
+
+-- Таблица ролей пользователей
+CREATE TABLE roles (
+    role_id INT AUTO_INCREMENT PRIMARY KEY,
+    role_name ENUM('guest', 'client', 'manager', 'admin') UNIQUE NOT NULL
+);
+
+-- Таблица пользователей
+CREATE TABLE users (
+    user_id INT AUTO_INCREMENT PRIMARY KEY,
+    username VARCHAR(50) UNIQUE NOT NULL,
+    password_hash VARCHAR(255) NOT NULL,
+    role_id INT,
+    contact_info TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (role_id) REFERENCES roles(role_id) ON DELETE SET NULL
+);
+
+-- Таблица меню (блюда)
+CREATE TABLE menu_items (
+    item_id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    description TEXT,
+    price DECIMAL(10,2) NOT NULL,
+    category ENUM('pizza', 'snack', 'salad', 'dessert', 'drink') NOT NULL,
+    image_path VARCHAR(255),
+    tech_card TEXT
+);
+
+-- Таблица заказов
+CREATE TABLE orders (
+    order_id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT,
+    status ENUM('ожидает приготовления', 'готово', 'доставляется', 'выдан', 'отменен') DEFAULT 'ожидает приготовления',
+    total_amount DECIMAL(10,2) DEFAULT 0.00,
+    delivery_address TEXT,
+    order_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE SET NULL
+);
+
+-- Таблица позиций в заказе
+CREATE TABLE order_items (
+    order_item_id INT AUTO_INCREMENT PRIMARY KEY,
+    order_id INT NOT NULL,
+    item_id INT NOT NULL,
+    quantity INT NOT NULL DEFAULT 1,
+    FOREIGN KEY (order_id) REFERENCES orders(order_id) ON DELETE CASCADE,
+    FOREIGN KEY (item_id) REFERENCES menu_items(item_id) ON DELETE CASCADE
+);
+
+-- Таблица платежей
+CREATE TABLE payments (
+    payment_id INT AUTO_INCREMENT PRIMARY KEY,
+    order_id INT NOT NULL,
+    amount DECIMAL(10,2) NOT NULL,
+    payment_method ENUM('наличные', 'карта', 'онлайн') DEFAULT 'наличные',
+    payment_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (order_id) REFERENCES orders(order_id) ON DELETE CASCADE
+);
+
+-- =============================================
+-- ЗАПОЛНЕНИЕ ДАННЫМИ
+-- =============================================
+
+-- Роли
+INSERT INTO roles (role_name) VALUES
+('guest'),
+('client'),
+('manager'),
+('admin');
+
+-- Пользователи (пароли в открытом виде — ТОЛЬКО ДЛЯ ТЕСТА!)
+INSERT INTO users (username, password_hash, role_id, contact_info) VALUES
+('admin', 'admin', 4, 'Администратор системы'),
+('manager', 'manager', 3, 'Старший менеджер'),
+('client', 'client', 2, 'Иван Иванов'),
+('guest_user', 'guest', 1, 'Гость');
+
+-- Меню — ИСПОЛЬЗУЕМ РЕАЛЬНЫЕ ПУТИ К ФОТО ИЗ ВАШЕЙ ПАПКИ images/
+INSERT INTO menu_items (name, description, price, category, image_path, tech_card) VALUES
+-- Пиццы
+('Маргарита', 'Томаты, моцарелла, базилик', 490.00, 'pizza', 'images/Маргарита.jpg', 'Тесто 300г, сыр 150г, соус 50г'),
+('Пепперони', 'Острая салями, моцарелла', 550.00, 'pizza', 'images/Пепперони.jpg', 'Тесто 300г, колбаса 100г, сыр 150г'),
+('Четыре сыра', 'Моцарелла, пармезан, дор-блю, чеддер', 650.00, 'pizza', 'images/Четыре сыра.jpg', 'Сырный микс 300г'),
+('Четыре вкуса', 'Сборная солянка из разных начинок', 680.00, 'pizza', 'images/Четыре вкуса.jpg', 'Разные начинки по секторам'),
+('Гавайская', 'Ветчина, ананас, сыр', 520.00, 'pizza', 'images/Гавайская.jpg', 'Ананас 100г, ветчина 100г, сыр 150г'),
+('Дьябло', 'Острый перец халапеньо, острая салями', 580.00, 'pizza', 'images/Дьябло.jpg', 'Перец 30г, колбаса 100г, сыр 150г'),
+('Зимняя пицца с трюфелем', 'Трюфельное масло, грибы, сливочный соус', 890.00, 'pizza', 'images/Зимняя пицца с трюфелем.jpg', 'Трюфель 5г, грибы 150г, сливки 100мл'),
+('Вегетарианская', 'Оливки, томаты, перец, лук', 480.00, 'pizza', 'images/Вегетарианская.jpg', 'Овощи микс 300г, сыр 150г'),
+
+-- Закуски
+('Куриные крылышки BBQ', 'Острые крылышки в соусе барбекю', 350.00, 'snack', 'images/Куриные крылышки BBQ.jpg', 'Крылья 400г, соус 50мл'),
+('Сырные палочки', 'Палочки в панировке с сыром', 250.00, 'snack', 'images/Сырные палочки.jpg', 'Сыр 200г, панировка 50г'),
+
+-- Салаты
+('Цезарь с курицей', 'Классический цезарь с филе', 420.00, 'salad', 'images/Цезарь с курицей.jpg', 'Курица 100г, салат Айсберг 150г, сухарики 20г'),
+('Греческий салат', 'Овощи, фета, оливки', 380.00, 'salad', 'images/Греческий салат.jpg', 'Сыр Фета 100г, овощи 200г, оливки 30г'),
+('Летний салат с клубникой', 'Микс салатов, клубника, бальзамик', 400.00, 'salad', 'images/Летний салат с клубникой.jpg', 'Клубника 50г, салат 150г, бальзамик 20мл'),
+
+-- Десерты
+('Тирамису', 'Итальянский десерт с маскарпоне', 320.00, 'dessert', 'images/Тирамису.jpg', 'Маскарпоне 100г, печенье 50г, кофе 30мл'),
+('Панна-котта', 'Сливочный десерт с ягодным соусом', 280.00, 'dessert', 'images/Панна-котта.jpg', 'Сливки 100мл, желатин 5г, ягоды 50г');
+
+-- =============================================
+-- ГОТОВО!
+-- =============================================
+-- Теперь вы можете подключиться к этой БД из PyQt6 приложения.
+-- Убедитесь, что папка images/ лежит рядом с основным скриптом Python.
