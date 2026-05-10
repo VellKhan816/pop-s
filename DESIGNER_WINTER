@@ -1,0 +1,209 @@
+import sys
+import pymysql
+from PyQt6.QtWidgets import *
+
+from login import Ui_LoginWin
+from admin import Ui_AdminWin
+from user import Ui_UserWin
+from auWin import Ui_auWin
+
+DB_CONFIG ={
+    "host":"localhost",
+    "user":"root",
+    "password":"250806",
+    "db":"отель"
+}
+
+def gur(rl,rp):
+    conn = pymysql.connect(**DB_CONFIG)
+    try:
+        with conn.cursor() as cur:
+            cur.execute("select role from users where login = %s and password = %s",(rl,rp))
+            result = cur.fetchone()
+            return result[0] if result else None
+    finally:
+        conn.close()
+
+def get_table_user():
+    conn = pymysql.connect(**DB_CONFIG)
+    try:
+        with conn.cursor() as cur:
+            cur.execute("select id, login,password,role,mail from users")
+            return cur.fetchall()
+    finally:
+        conn.close()
+
+def get_table_room(sort=None):
+    conn = pymysql.connect(**DB_CONFIG)
+    try:
+        with conn.cursor() as cur:
+            zapros = "select idroom, number, type, member_count, date from rooms"
+            if sort:
+                kluch = {"idroom":"idroom", "number":"number", "type":"type", "member_count":"member_count", "date":"date"}
+                if sort in kluch:
+                    zapros += f" order by {kluch[sort]} asc"
+            cur.execute(zapros)
+            return cur.fetchall()
+    finally:
+        conn.close()
+
+def delete_user_from_db(id_user):
+    conn = pymysql.connect(**DB_CONFIG)
+    try:
+        with conn.cursor() as cur:
+            cur.execute("delete from users where id = %s", (id_user,))
+            conn.commit()
+            return True
+    finally:
+        conn.close()
+
+def add_user_to_db(log,pas,role,mail):
+    conn = pymysql.connect(**DB_CONFIG)
+    try:
+        with conn.cursor() as cur:
+            cur.execute("insert into users(login,password,role,mail) values (%s,%s,%s,%s)", (log,pas,role,mail))
+            conn.commit()
+            return True
+    finally:
+        conn.close()
+
+class LoginWindow(QMainWindow):
+    def __init__(self):
+        super().__init__()
+        self.ui = Ui_LoginWin()
+        self.ui.setupUi(self)
+        self.ui.log_button.clicked.connect(self.enter)
+
+    def enter(self):
+        rl = self.ui.login_Edit.text().strip()
+        rp = self.ui.password_Edit.text().strip()
+        role = gur(rl,rp)
+
+        if role == "admin":
+            QMessageBox.information(self,"","")
+            self.admin = AdminWindow()
+            self.admin.show()
+            self.close()
+        elif role == "user":
+            QMessageBox.information(self,"","")
+            self.user = UserWindow()
+            self.user.show()
+            self.close()
+        else:
+            QMessageBox.critical(self,"","")
+
+class AdminWindow(QMainWindow):
+    def __init__(self):
+        super().__init__()
+        self.ui = Ui_AdminWin()
+        self.ui.setupUi(self)
+        self.user_table()
+        self.room_table()
+        self.ui.updateButton.clicked.connect(self.update)
+        self.ui.updateButton2.clicked.connect(self.update2)
+        self.ui.SortButton.clicked.connect(self.sort)
+        self.ui.DelButton.clicked.connect(self.delete)
+        self.ui.AddButton.clicked.connect(self.add)
+
+    def user_table(self):
+        a = get_table_user()
+        self.ui.tableWidget.setRowCount(len(a))
+        self.ui.tableWidget.setColumnCount(5)
+        self.ui.tableWidget.setHorizontalHeaderLabels(["id","логин","пароль","роль","mail"])
+
+        for i, (id_user,log,pas,role,mail) in enumerate(a):
+            self.ui.tableWidget.setItem(i, 0, QTableWidgetItem(str(id_user)))
+            self.ui.tableWidget.setItem(i, 1, QTableWidgetItem(log))
+            self.ui.tableWidget.setItem(i, 2, QTableWidgetItem(pas))
+            self.ui.tableWidget.setItem(i, 3, QTableWidgetItem(role))
+            self.ui.tableWidget.setItem(i, 4, QTableWidgetItem(mail))
+
+    def room_table(self,sort=None):
+        b = get_table_room(sort)
+        self.ui.tableWidget2.setRowCount(len(b))
+        self.ui.tableWidget2.setColumnCount(5)
+        self.ui.tableWidget2.setHorizontalHeaderLabels(["id","номер","тип","кол-во жителей","дата"])
+
+        for i, (id_room,num,typ,mem,date) in enumerate(b):
+            self.ui.tableWidget2.setItem(i, 0, QTableWidgetItem(str(id_room)))
+            self.ui.tableWidget2.setItem(i, 1, QTableWidgetItem(str(num)))
+            self.ui.tableWidget2.setItem(i, 2, QTableWidgetItem(typ))
+            self.ui.tableWidget2.setItem(i, 3, QTableWidgetItem(str(mem)))
+            self.ui.tableWidget2.setItem(i, 4, QTableWidgetItem(str(date)))
+
+    def update(self):
+        self.user_table()
+
+    def update2(self):
+        self.ui.tableWidget2.sortItems(-1)
+        self.room_table()
+
+    def sort(self):
+        column = ["idroom", "number", "type", "member_count", "date"]
+        sort_column = column[self.ui.sortBox.currentIndex()]
+        self.room_table(sort_column)
+
+    def add(self):
+        self.auw = AUWindow()
+        self.auw.show()
+
+    def delete(self):
+        row = self.ui.tableWidget.currentRow()
+
+        id_user = int(self.ui.tableWidget.item(row,0).text())
+        reply = QMessageBox.question(self,"","", QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+
+        if reply == QMessageBox.StandardButton.Yes:
+            delete_user_from_db(id_user)
+            self.user_table()
+
+
+class UserWindow(QMainWindow):
+    def __init__(self):
+        super().__init__()
+        self.ui = Ui_UserWin()
+        self.ui.setupUi(self)
+        self.room_table()
+
+    def room_table(self,sort=None):
+        b = get_table_room(sort)
+        self.ui.tableWidget.setRowCount(len(b))
+        self.ui.tableWidget.setColumnCount(5)
+        self.ui.tableWidget.setHorizontalHeaderLabels(["id","номер","тип","кол-во жителей","дата"])
+
+        for i, (id_room,num,typ,mem,date) in enumerate(b):
+            self.ui.tableWidget.setItem(i, 0, QTableWidgetItem(str(id_room)))
+            self.ui.tableWidget.setItem(i, 1, QTableWidgetItem(str(num)))
+            self.ui.tableWidget.setItem(i, 2, QTableWidgetItem(typ))
+            self.ui.tableWidget.setItem(i, 3, QTableWidgetItem(str(mem)))
+            self.ui.tableWidget.setItem(i, 4, QTableWidgetItem(str(date)))
+
+class AUWindow(QMainWindow):
+    def __init__(self):
+        super().__init__()
+        self.ui = Ui_auWin()
+        self.ui.setupUi(self)
+        self.ui.AddButton.clicked.connect(self.add_user)
+
+    def add_user(self):
+        log = self.ui.LogEdit.text().strip()
+        pas = self.ui.PasEdit.text().strip()
+        role = self.ui.RoleEdit.currentText().strip()
+        mail = self.ui.MailEdit.text().strip()
+
+        if log and pas and role and mail:
+            if add_user_to_db(log,pas,role,mail):
+                QMessageBox.information(self,"","")
+                self.close()
+            else:
+                QMessageBox.critical(self,"","")
+        else:
+            QMessageBox.warning(self,"","")
+
+
+if __name__ == "__main__":
+    app = QApplication(sys.argv)
+    window = LoginWindow()
+    window.show()
+    sys.exit(app.exec())
+
